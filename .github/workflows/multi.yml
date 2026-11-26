@@ -1,0 +1,42 @@
+name: crank-multi
+
+on:
+  schedule:
+    # har 15 daqiqada tekshiradi (so'rov faqat yangi 1h sham yopilganda yuboriladi), yakshanba-juma, UTC
+    - cron: "3,18,33,48 * * * 0-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crank-multi
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy pandas requests yfinance
+      - name: Run multi bot (USDJPY, GBPJPY)
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python bot_multi.py
+      - name: Save state
+        run: |
+          git config user.name "crank-multi"
+          git config user.email "crank-multi@users.noreply.github.com"
+          git add state_multi.json
+          if ! git diff --cached --quiet; then
+            git commit -m "update multi state"
+            for i in 1 2 3; do
+              git pull --rebase --autostash && git push && break
+              sleep $((i * 4))
+            done
+          fi
